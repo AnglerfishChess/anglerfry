@@ -25,6 +25,7 @@ jobs:
         with:
           toolchain: "1.85.1"
       - name: Verify crate version matches the release tag
+        if: github.event_name == 'release'
         run: |
           want="${GITHUB_REF_NAME#v}"
           got="$(cargo metadata --format-version 1 --no-deps | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
