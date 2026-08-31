@@ -6,6 +6,9 @@ rust-version = "1.85.1"
 description = "A small, readable UCI chess engine to build your own on top of."
 authors = ["Alexander Myodov"]
 license = "MIT"
+repository = "https://github.com/AnglerfishChess/anglerfry"
+keywords = ["chess", "uci", "chess-engine", "engine"]
+categories = ["games", "game-engines"]
 
 [dependencies]
 cozy-chess = "0.3.4"

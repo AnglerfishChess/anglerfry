@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned to the crate's rust-version so clippy findings are reproducible.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.85.1"
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - run: cargo test
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      # Catches packaging drift (missing metadata, broken excludes) before a
+      # release tries to publish for real.
+      - if: matrix.os == 'ubuntu-latest'
+        run: cargo publish --dry-run
+
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.85.1"
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v5
+      - run: cargo build --release
+      # The engine must stay a conformant UCI citizen at every level it declares.
+      - run: uvx uci-test-suite ./target/release/anglerfry
