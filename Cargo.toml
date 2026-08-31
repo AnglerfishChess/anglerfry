@@ -1,0 +1,14 @@
+[package]
+name = "anglerfry"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85.1"
+description = "A small, readable UCI chess engine to build your own on top of."
+authors = ["Alexander Myodov"]
+license = "MIT"
+
+[dependencies]
+cozy-chess = "0.3.4"
+env_logger = "0.11"
+log = "0.4"
+rand = "0.10"
