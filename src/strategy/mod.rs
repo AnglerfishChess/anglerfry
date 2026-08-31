@@ -58,6 +58,7 @@ impl Strategy {
     }
 
     /// The move to play in `board` within `limits`, or `None` when the game is over there.
+    /// Emits at least one `info` line whenever it returns a move.
     pub fn pick(self, board: &Board, limits: &Limits) -> Option<Move> {
         match self {
             Strategy::Random => random::pick(board),

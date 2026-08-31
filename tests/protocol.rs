@@ -222,3 +222,16 @@ fn reports_its_thinking_when_searching() {
     }));
     engine.expect_silence();
 }
+
+#[test]
+fn reports_a_score_even_when_picking_at_random() {
+    let (mut engine, _) = Engine::handshake();
+
+    engine.send("position startpos");
+    engine.send("go movetime 50");
+    let lines = engine.until("bestmove");
+
+    assert!(lines.iter().any(|line| {
+        line.starts_with("info depth ") && line.contains(" score cp ") && line.contains(" pv ")
+    }));
+}
