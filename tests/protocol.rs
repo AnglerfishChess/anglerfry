@@ -15,6 +15,9 @@ const SILENCE: Duration = Duration::from_millis(300);
 /// A forced-move position: the white king must capture the queen.
 const FORCED: &str = "k7/8/8/8/8/8/6q1/7K w - - 0 1";
 
+/// A position where white mates in one, by `h5f7`.
+const MATE_IN_ONE: &str = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 0 1";
+
 /// Every legal first move of white.
 const OPENINGS: [&str; 20] = [
     "a2a3", "a2a4", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4", "e2e3", "e2e4", "f2f3", "f2f4",
@@ -221,6 +224,41 @@ fn reports_its_thinking_when_searching() {
         line.starts_with("info depth 2 ") && line.contains(" score cp ") && line.contains(" pv ")
     }));
     engine.expect_silence();
+}
+
+#[test]
+fn answers_a_search_for_a_mate() {
+    let (mut engine, _) = Engine::handshake();
+
+    engine.send("setoption name Strategy value two-ply");
+    engine.send(&format!("position fen {MATE_IN_ONE}"));
+    engine.send("go mate 1");
+    assert_eq!(
+        engine.until("bestmove").pop().as_deref(),
+        Some("bestmove h5f7")
+    );
+    engine.expect_silence();
+}
+
+#[test]
+fn answers_with_one_of_the_searchmoves() {
+    let (mut engine, _) = Engine::handshake();
+
+    for strategy in ["random", "two-ply"] {
+        engine.send(&format!("setoption name Strategy value {strategy}"));
+        engine.send("position startpos");
+        engine.send("go depth 2 searchmoves a2a3 h2h3");
+        let bestmove = engine.until("bestmove").pop().expect("a bestmove");
+        assert!(
+            ["bestmove a2a3", "bestmove h2h3"].contains(&bestmove.as_str()),
+            "{strategy} answered {bestmove:?}"
+        );
+    }
+
+    // Naming no usable move leaves every legal one allowed.
+    engine.send("go depth 2 searchmoves e2e5 nonsense");
+    let bestmove = engine.until("bestmove").pop().expect("a bestmove");
+    assert!(OPENINGS.contains(&&bestmove["bestmove ".len()..]));
 }
 
 #[test]

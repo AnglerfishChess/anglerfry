@@ -106,7 +106,7 @@ impl Session {
     /// Starts a search for the current position, after any search in flight has reported.
     fn go(&mut self, go: &Go) {
         self.finish_search();
-        let limits = Limits::new(go, self.board.side_to_move());
+        let limits = Limits::new(go, &self.board);
         self.search = Some(search::spawn(self.strategy, self.board.clone(), limits));
     }
 

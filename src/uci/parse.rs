@@ -36,6 +36,10 @@ pub struct Go {
     pub moves_to_go: Option<u32>,
     pub depth: Option<u8>,
     pub nodes: Option<u64>,
+    /// Moves to mate in, as `mate` asks.
+    pub mate: Option<u8>,
+    /// The moves the answer must come from, in UCI notation; empty allows every legal move.
+    pub search_moves: Vec<String>,
     /// Whether the search runs until stopped, as `infinite` and `ponder` ask.
     pub infinite: bool,
 }
@@ -115,11 +119,28 @@ fn position(tokens: &[&str]) -> Option<Command> {
     Some(Command::Position(board))
 }
 
+/// The keywords a `go` may name, each ending the argument list of the one before.
+const GO_KEYWORDS: [&str; 12] = [
+    "searchmoves",
+    "ponder",
+    "wtime",
+    "btime",
+    "winc",
+    "binc",
+    "movestogo",
+    "depth",
+    "nodes",
+    "mate",
+    "movetime",
+    "infinite",
+];
+
 /// Reads the tail of a `go`, keeping the limits it names.
 fn go(tokens: &[&str]) -> Go {
     let mut go = Go::default();
     for (index, keyword) in tokens.iter().enumerate() {
-        let argument = tokens.get(index + 1).copied().unwrap_or_default();
+        let rest = &tokens[index + 1..];
+        let argument = rest.first().copied().unwrap_or_default();
         match *keyword {
             "movetime" => go.movetime = millis(argument),
             "wtime" => go.white_time = millis(argument),
@@ -129,11 +150,22 @@ fn go(tokens: &[&str]) -> Go {
             "movestogo" => go.moves_to_go = argument.parse().ok(),
             "depth" => go.depth = argument.parse().ok(),
             "nodes" => go.nodes = argument.parse().ok(),
+            "mate" => go.mate = argument.parse().ok(),
+            "searchmoves" => go.search_moves = search_moves(rest),
             "infinite" | "ponder" => go.infinite = true,
             _ => {}
         }
     }
     go
+}
+
+/// Reads the moves of a `searchmoves`, which run until the next keyword of the `go`.
+fn search_moves(tokens: &[&str]) -> Vec<String> {
+    tokens
+        .iter()
+        .take_while(|token| !GO_KEYWORDS.contains(*token))
+        .map(|token| (*token).to_owned())
+        .collect()
 }
 
 /// Reads a count of milliseconds.
@@ -242,16 +274,27 @@ mod tests {
         );
         assert_eq!(go_of("go depth 7 nodes 900").depth, Some(7));
         assert_eq!(go_of("go depth 7 nodes 900").nodes, Some(900));
+        assert_eq!(go_of("go mate 2").mate, Some(2));
         assert!(go_of("go infinite").infinite);
         assert!(go_of("go ponder").infinite);
         assert_eq!(go_of("go"), Go::default());
     }
 
     #[test]
-    fn keeps_the_limits_it_understands_out_of_a_go() {
+    fn reads_the_moves_a_go_restricts_itself_to() {
         assert_eq!(
-            go_of("go movetime nonsense searchmoves e2e4"),
-            Go::default()
+            go_of("go searchmoves e2e4 d2d4 depth 3"),
+            Go {
+                search_moves: vec!["e2e4".to_owned(), "d2d4".to_owned()],
+                depth: Some(3),
+                ..Go::default()
+            }
         );
+        assert!(go_of("go searchmoves").search_moves.is_empty());
+    }
+
+    #[test]
+    fn keeps_the_limits_it_understands_out_of_a_go() {
+        assert_eq!(go_of("go movetime nonsense mate nonsense"), Go::default());
     }
 }

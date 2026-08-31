@@ -5,9 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use cozy_chess::util::display_uci_move;
+use cozy_chess::util::{display_uci_move, parse_uci_move};
 use cozy_chess::{Board, Color, Move};
-use log::error;
+use log::{error, warn};
 
 use crate::strategy::Strategy;
 use crate::uci::{self, Go};
@@ -27,7 +27,7 @@ const RESERVE: Duration = Duration::from_millis(50);
 /// How often a finished but withheld search rechecks its limits.
 const POLL: Duration = Duration::from_millis(1);
 
-/// When a search must give up, and how deep it may go before then.
+/// When a search must give up, how deep it may go before then, and what it may answer with.
 pub struct Limits {
     stop: Arc<AtomicBool>,
     deadline: Option<Instant>,
@@ -35,14 +35,16 @@ pub struct Limits {
     pub depth: Option<u8>,
     /// Positions to visit at most.
     pub nodes: Option<u64>,
+    /// The moves the answer must come from; empty allows every legal move.
+    pub search_moves: Vec<Move>,
     /// Whether the move must be withheld until `stop`.
     pub infinite: bool,
 }
 
 impl Limits {
-    /// Turns the limits of a `go` into a deadline for a search by `turn`.
-    pub fn new(go: &Go, turn: Color) -> Limits {
-        let (remaining, increment) = match turn {
+    /// Turns the limits of a `go` into a deadline and a move list for a search in `board`.
+    pub fn new(go: &Go, board: &Board) -> Limits {
+        let (remaining, increment) = match board.side_to_move() {
             Color::White => (go.white_time, go.white_increment),
             Color::Black => (go.black_time, go.black_increment),
         };
@@ -53,14 +55,16 @@ impl Limits {
             ),
             (None, None) => None,
         };
+        // A mate in `moves` is at most that many moves of each side deep.
+        let depth = go.depth.or(go.mate.map(|moves| moves.saturating_mul(2)));
         Limits {
             stop: Arc::new(AtomicBool::new(false)),
             deadline,
-            depth: go.depth,
+            depth,
             nodes: go.nodes,
+            search_moves: playable(board, &go.search_moves),
             // A `go` that names no bound at all also runs until stopped.
-            infinite: go.infinite
-                || (deadline.is_none() && go.depth.is_none() && go.nodes.is_none()),
+            infinite: go.infinite || (deadline.is_none() && depth.is_none() && go.nodes.is_none()),
         }
     }
 
@@ -76,6 +80,20 @@ impl Limits {
     pub fn spent(&self, nodes: u64) -> bool {
         self.nodes.is_some_and(|limit| nodes >= limit) || self.expired()
     }
+}
+
+/// The moves of `wanted`, in UCI notation, that can be played in `board`; the rest are dropped.
+fn playable(board: &Board, wanted: &[String]) -> Vec<Move> {
+    wanted
+        .iter()
+        .filter_map(|text| match parse_uci_move(board, text) {
+            Ok(played) if board.is_legal(played) => Some(played),
+            _ => {
+                warn!("Ignoring searchmoves {text}: unplayable here");
+                None
+            }
+        })
+        .collect()
 }
 
 /// Time to spend on one move, given the clock and the increment of the side to move.
@@ -131,19 +149,19 @@ fn best_move(board: &Board, played: Option<Move>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use cozy_chess::util::parse_uci_move;
-
     use super::*;
+
+    /// The limits of a `go` at the initial position.
+    fn limits_of(go: &Go) -> Limits {
+        Limits::new(go, &Board::startpos())
+    }
 
     /// The limits of a `go` with `depth` plies asked for and nothing else.
     fn to_depth(depth: u8) -> Limits {
-        Limits::new(
-            &Go {
-                depth: Some(depth),
-                ..Go::default()
-            },
-            Color::White,
-        )
+        limits_of(&Go {
+            depth: Some(depth),
+            ..Go::default()
+        })
     }
 
     #[test]
@@ -180,29 +198,47 @@ mod tests {
 
     #[test]
     fn runs_until_stopped_only_without_any_bound() {
-        assert!(Limits::new(&Go::default(), Color::White).infinite);
+        assert!(limits_of(&Go::default()).infinite);
         assert!(
-            Limits::new(
-                &Go {
-                    infinite: true,
-                    ..Go::default()
-                },
-                Color::White
-            )
+            limits_of(&Go {
+                infinite: true,
+                ..Go::default()
+            })
             .infinite
         );
         assert!(!to_depth(3).infinite);
     }
 
     #[test]
-    fn expires_at_the_deadline() {
-        let limits = Limits::new(
-            &Go {
-                movetime: Some(Duration::ZERO),
-                ..Go::default()
-            },
-            Color::White,
+    fn searches_a_mate_to_a_bounded_depth() {
+        let limits = limits_of(&Go {
+            mate: Some(2),
+            ..Go::default()
+        });
+        assert_eq!(limits.depth, Some(4));
+        assert!(!limits.infinite);
+    }
+
+    #[test]
+    fn keeps_only_the_searchmoves_that_can_be_played() {
+        let limits = limits_of(&Go {
+            search_moves: ["e2e4", "e2e5", "nonsense"].map(str::to_owned).into(),
+            ..Go::default()
+        });
+        let board = Board::startpos();
+        assert_eq!(limits.search_moves.len(), 1);
+        assert_eq!(
+            display_uci_move(&board, limits.search_moves[0]).to_string(),
+            "e2e4"
         );
+    }
+
+    #[test]
+    fn expires_at_the_deadline() {
+        let limits = limits_of(&Go {
+            movetime: Some(Duration::ZERO),
+            ..Go::default()
+        });
         assert!(limits.expired());
     }
 
@@ -224,13 +260,10 @@ mod tests {
 
     #[test]
     fn expires_when_the_nodes_run_out() {
-        let limits = Limits::new(
-            &Go {
-                nodes: Some(100),
-                ..Go::default()
-            },
-            Color::White,
-        );
+        let limits = limits_of(&Go {
+            nodes: Some(100),
+            ..Go::default()
+        });
         assert!(!limits.spent(99));
         assert!(limits.spent(100));
     }

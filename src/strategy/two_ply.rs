@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use cozy_chess::{Board, Color, GameStatus, Move, Piece};
 
-use super::{legal_moves, report};
+use super::{report, root_moves};
 use crate::search::Limits;
 
 /// The deepest this strategy searches, whatever depth is asked of it.
@@ -72,11 +72,11 @@ fn negamax(board: &Board, depth: u8, limits: &Limits, nodes: &mut u64) -> i32 {
     best
 }
 
-/// The move to play in `board`, searched as deeply as `limits` allow, or `None` when the game is
-/// over there.
+/// The move to play in `board`, searched as deeply as `limits` allow and chosen among the moves
+/// they allow, or `None` when there is no move to play.
 pub fn pick(board: &Board, limits: &Limits) -> Option<Move> {
     let started = Instant::now();
-    let moves = legal_moves(board);
+    let moves = root_moves(board, limits);
     let mut best = *moves.first()?;
     let max_depth = limits.depth.unwrap_or(MAX_DEPTH).clamp(1, MAX_DEPTH);
     let mut nodes = 0;
@@ -122,7 +122,7 @@ mod tests {
                 depth: Some(depth),
                 ..Go::default()
             },
-            board.side_to_move(),
+            &board,
         );
         let played = pick(&board, &limits)?;
         Some(display_uci_move(&board, played).to_string())

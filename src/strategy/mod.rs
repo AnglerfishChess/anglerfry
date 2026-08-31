@@ -61,14 +61,17 @@ impl Strategy {
     /// Emits at least one `info` line whenever it returns a move.
     pub fn pick(self, board: &Board, limits: &Limits) -> Option<Move> {
         match self {
-            Strategy::Random => random::pick(board),
+            Strategy::Random => random::pick(board, limits),
             Strategy::TwoPly => two_ply::pick(board, limits),
         }
     }
 }
 
-/// Every legal move in `board`.
-fn legal_moves(board: &Board) -> Vec<Move> {
+/// The moves in `board` a search may answer with: those `limits` name, else every legal one.
+fn root_moves(board: &Board, limits: &Limits) -> Vec<Move> {
+    if !limits.search_moves.is_empty() {
+        return limits.search_moves.clone();
+    }
     let mut moves = Vec::new();
     board.generate_moves(|piece_moves| {
         moves.extend(piece_moves);
@@ -109,6 +112,25 @@ mod tests {
         );
     }
 
+    /// Picks with every strategy, checking that the answer is one of the named moves.
+    #[test]
+    fn every_strategy_answers_within_searchmoves() {
+        let board = Board::startpos();
+        let limits = Limits::new(
+            &Go {
+                depth: Some(2),
+                search_moves: ["a2a3", "h2h3"].map(str::to_owned).into(),
+                ..Go::default()
+            },
+            &board,
+        );
+        for strategy in Strategy::ALL {
+            let played = strategy.pick(&board, &limits).expect("a legal move");
+            let played = display_uci_move(&board, played).to_string();
+            assert!(["a2a3", "h2h3"].contains(&played.as_str()), "{played}");
+        }
+    }
+
     /// Plays both strategies against each other, checking that every move they pick is legal.
     #[test]
     fn self_play_stays_legal() {
@@ -118,7 +140,7 @@ mod tests {
                 depth: Some(2),
                 ..Go::default()
             },
-            board.side_to_move(),
+            &board,
         );
         for ply in 0..40 {
             if board.status() != GameStatus::Ongoing {
