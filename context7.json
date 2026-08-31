@@ -1,4 +1,21 @@
 {
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Anglerfry",
+  "description": "A small, readable UCI chess engine in Rust, written to be picked up and adapted: a two-thread UCI shell (the stdin loop keeps answering while a search thread thinks) with pluggable move-selection strategies",
   "url": "https://context7.com/anglerfishchess/anglerfry",
-  "public_key": "pk_oqKTKO3hmjBG756m5kers"
+  "public_key": "pk_oqKTKO3hmjBG756m5kers",
+  "folders": [],
+  "excludeFolders": [
+    "tests",
+    ".github"
+  ],
+  "rules": [
+    "Install with: cargo install anglerfry. Run the binary and type uci; point any chess GUI at it as a UCI engine (no arguments, no working directory).",
+    "It plays weakly on purpose: the value is the protocol shape, not the moves. The Strategy UCI option selects how moves are picked (random, two-ply).",
+    "To build your own engine from it: clone the repository and add a strategy file under src/strategy/ implementing pick(board, limits); the README's 'Add a strategy' section lists the two-line registration.",
+    "The source is the documentation: src/uci/ is the protocol loop and parser, src/search.rs the time/depth/node budgeting and the search thread, src/strategy/ the move selection examples.",
+    "Set RUST_LOG=debug for a stderr trace of every command handled and ignored.",
+    "Conformance is verified with uci-test-suite (uvx uci-test-suite ./target/release/anglerfry); it passes every level it declares.",
+    "MIT-licensed, including every dependency."
+  ]
 }
