@@ -37,6 +37,6 @@ The `Strategy` option chooses how moves are picked:
 
 The option line and the GUI's combo box follow from `ALL`.
 
-## Licence
+## License
 
-MIT, see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
