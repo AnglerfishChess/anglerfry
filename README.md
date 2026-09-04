@@ -1,5 +1,11 @@
 # Anglerfry
 
+[![crates.io](https://img.shields.io/crates/v/anglerfry)](https://crates.io/crates/anglerfry)
+[![docs.rs](https://img.shields.io/docsrs/anglerfry)](https://docs.rs/anglerfry)
+[![CI](https://github.com/AnglerfishChess/anglerfry/actions/workflows/ci.yml/badge.svg)](https://github.com/AnglerfishChess/anglerfry/actions/workflows/ci.yml)
+[![Publish](https://github.com/AnglerfishChess/anglerfry/actions/workflows/publish.yml/badge.svg)](https://github.com/AnglerfishChess/anglerfry/actions/workflows/publish.yml)
+[![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A small, readable UCI chess engine in Rust, to build your own on top of.
 
 *Anglerfry is what Anglerfish was before it learned to hunt.*
